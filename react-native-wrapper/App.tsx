@@ -18,6 +18,7 @@ import * as Network from 'expo-network';
 import * as Haptics from 'expo-haptics';
 import * as Clipboard from 'expo-clipboard';
 import * as Battery from 'expo-battery';
+import * as Speech from 'expo-speech';
 import { NativeHeader } from './src/components/NativeHeader';
 import { handleNativeBridgeMessage } from './src/utils/BridgeHandler';
 import { getTranscriptsCache, clearTranscriptsCache, CachedTranslation } from './src/utils/OfflineCache';
@@ -82,6 +83,140 @@ export default function App() {
   const [isCourseExpanded, setIsCourseExpanded] = useState<boolean>(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('hi');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  // User Verification and Login Gateway States
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [loginEmail, setLoginEmail] = useState<string>('');
+  const [loginMobile, setLoginMobile] = useState<string>('');
+  const [loginMethod, setLoginMethod] = useState<'email' | 'mobile'>('email');
+  const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
+
+  // Crowdsourced Verification Feedback and Rewards State Managers
+  const [walletCredits, setWalletCredits] = useState<number>(100); // 100 Initial credits
+  const [pendingPoints, setPendingPoints] = useState<number>(0);
+  const [isAuditorHubExpanded, setIsAuditorHubExpanded] = useState<boolean>(false);
+  const [fbLanguage, setFbLanguage] = useState<string>('hi');
+  const [fbOriginal, setFbOriginal] = useState<string>('');
+  const [fbTranslated, setFbTranslated] = useState<string>('');
+  const [fbIsAccurate, setFbIsAccurate] = useState<boolean>(true);
+  const [fbCorrection, setFbCorrection] = useState<string>('');
+
+  interface TranslationFeedbackItem {
+    id: string;
+    language: string;
+    originalText: string;
+    translatedText: string;
+    accuracyState: 'accurate' | 'inaccurate';
+    userCorrection: string;
+    verificationStatus: 'Pending Verification' | 'Verified & Credits Issued';
+    pointsReward: number;
+    timestamp: string;
+  }
+  const [feedbackHistory, setFeedbackHistory] = useState<TranslationFeedbackItem[]>([
+    {
+      id: 'fb_init_1',
+      language: 'Hindi',
+      originalText: 'Please help me immediately.',
+      translatedText: 'कृपया मेरी तुरंत मदद करें।',
+      accuracyState: 'accurate',
+      userCorrection: '',
+      verificationStatus: 'Verified & Credits Issued',
+      pointsReward: 50,
+      timestamp: 'Today at 05:22 AM'
+    }
+  ]);
+
+  // Weekly earning trend states mimicking Recharts' data structures
+  const [weeklyEarnings, setWeeklyEarnings] = useState<{ day: string; credits: number }[]>([
+    { day: 'Mon', credits: 50 },
+    { day: 'Tue', credits: 100 },
+    { day: 'Wed', credits: 50 },
+    { day: 'Thu', credits: 150 },
+    { day: 'Fri', credits: 100 },
+    { day: 'Sat', credits: 120 },
+    { day: 'Sun', credits: 100 },
+  ]);
+  const [selectedChartDay, setSelectedChartDay] = useState<string | null>(null);
+
+  // Sync today's credits on walletCredits updates
+  useEffect(() => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const todayName = days[new Date().getDay()];
+    setWeeklyEarnings(prev => prev.map(item => {
+      if (item.day === todayName) {
+        return { ...item, credits: walletCredits };
+      }
+      return item;
+    }));
+  }, [walletCredits]);
+
+  const handleSubmitLinguisticReview = async () => {
+    if (!fbOriginal.trim() || !fbTranslated.trim()) {
+      Alert.alert('Incomplete Form', 'Please enter both the original English sentence and the translated native text.');
+      return;
+    }
+
+    const matchedLang = LANGUAGE_COURSES.find(c => c.id === fbLanguage) || LANGUAGE_COURSES[0];
+    const newFeedback: TranslationFeedbackItem = {
+      id: Math.random().toString(36).substring(2, 9),
+      language: matchedLang.name,
+      originalText: fbOriginal.trim(),
+      translatedText: fbTranslated.trim(),
+      accuracyState: fbIsAccurate ? 'accurate' : 'inaccurate',
+      userCorrection: fbIsAccurate ? '' : fbCorrection.trim(),
+      verificationStatus: 'Pending Verification',
+      pointsReward: 50,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    };
+
+    setFeedbackHistory(prev => [newFeedback, ...prev]);
+    setPendingPoints(prev => prev + 50);
+
+    // Clear Form Setup
+    setFbOriginal('');
+    setFbTranslated('');
+    setFbIsAccurate(true);
+    setFbCorrection('');
+
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {}
+
+    speakText("Verification review logged. Fifty pending points added to wallet waiting for team validation.");
+    Alert.alert(
+      'Review Registered 📝',
+      'Linguistic verification review successfully submitted! You have earned +50 Pending Points. Once verified by the AnuVedhai audit team, these will automatically be converted to Active Reward Credits!'
+    );
+  };
+
+  const handleSimulateTeamLinguisticAudit = async () => {
+    const pendingItemsCount = feedbackHistory.filter(item => item.verificationStatus === 'Pending Verification').length;
+    if (pendingItemsCount === 0) {
+      Alert.alert('No Pending Reviews', 'All translation feedbacks have been verified or no reviews are pending.');
+      return;
+    }
+
+    setFeedbackHistory(prev => prev.map(item => {
+      if (item.verificationStatus === 'Pending Verification') {
+        return { ...item, verificationStatus: 'Verified & Credits Issued' };
+      }
+      return item;
+    }));
+
+    const newlyCreditedAmount = pendingPoints;
+    setWalletCredits(prev => prev + newlyCreditedAmount);
+    setPendingPoints(0);
+
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {}
+
+    speakText(`Evaluation verification complete. ${newlyCreditedAmount} active reward credits successfully transferred to your wallet.`);
+    Alert.alert(
+      'Curation Verification Success 💎',
+      `The team verified your ${pendingItemsCount} crowdsourced translation review(s)! ${newlyCreditedAmount} Credits have been deposited into your active account wallet.`
+    );
+  };
 
   // Interactive Vocabulary Practice Quiz states
   const [activeCourseSubTab, setActiveCourseSubTab] = useState<'learn' | 'quiz'>('learn');
@@ -596,6 +731,163 @@ export default function App() {
             />
           )}
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Login Interception Gate
+  if (!isLoggedIn) {
+    const handleLoginPress = async () => {
+      // Validate inputs based on method choice
+      if (loginMethod === 'email') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!loginEmail.trim() || !emailRegex.test(loginEmail)) {
+          Alert.alert('Invalid Email ID', 'Please enter a valid email address (e.g., username@domain.com) to authenticate.');
+          return;
+        }
+      } else {
+        const numbersOnly = loginMobile.replace(/\D/g, '');
+        if (numbersOnly.length < 10) {
+          Alert.alert('Invalid Mobile Connection', 'Please enter a valid mobile phone number containing at least 10 digits.');
+          return;
+        }
+      }
+
+      if (!termsAccepted) {
+        Alert.alert('Agreement Required', 'Please read the translation disclaimer and click the agreement checkbox to authorize secure portal deployment.');
+        return;
+      }
+
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (e) {}
+
+      setIsLoggedIn(true);
+      speakText("Authorization verified. Welcoming back to Scribe translation core.");
+    };
+
+    return (
+      <SafeAreaView style={styles.loginPageContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#0B0F19" />
+        
+        <ScrollView 
+          contentContainerStyle={styles.loginScrollContainer} 
+          keyboardShouldPersistTaps="handled"
+          indicatorStyle="white"
+        >
+          <View style={styles.loginLogoSection}>
+            <Text style={styles.loginAppIcon}>🌐</Text>
+            <Text style={styles.loginAppName}>AnuVedhai Gateway</Text>
+            <Text style={styles.loginAppTagline}>Proximity Indian Conversational Translator — Scribe Active Engine</Text>
+          </View>
+
+          <View style={styles.loginCard}>
+            <Text style={styles.loginCardTitle}>Secure Portal Authorization</Text>
+            <Text style={styles.loginCardDesc}>Enter your authentication coordinates to unlock near-realtime linguistic modules.</Text>
+
+            {/* Login Tab Selectors */}
+            <View style={styles.loginTabGroup}>
+              <TouchableOpacity
+                style={[styles.loginTabBtn, loginMethod === 'email' && styles.loginTabBtnActive]}
+                onPress={async () => {
+                  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                  setLoginMethod('email');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.loginTabBtnTxt, loginMethod === 'email' && styles.loginTabBtnTxtActive]}>
+                  📧 Email ID
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.loginTabBtn, loginMethod === 'mobile' && styles.loginTabBtnActive]}
+                onPress={async () => {
+                  try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                  setLoginMethod('mobile');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.loginTabBtnTxt, loginMethod === 'mobile' && styles.loginTabBtnTxtActive]}>
+                  📱 Mobile ID
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Dynamic Inputs */}
+            {loginMethod === 'email' ? (
+              <View style={styles.loginInputWrapper}>
+                <Text style={styles.loginInputLabel}>Authorized Email Address</Text>
+                <TextInput
+                  style={styles.loginTextInputField}
+                  placeholder="e.g. officer@anuvedhai.in"
+                  placeholderTextColor="#4E5D78"
+                  value={loginEmail}
+                  onChangeText={setLoginEmail}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  keyboardAppearance="dark"
+                />
+              </View>
+            ) : (
+              <View style={styles.loginInputWrapper}>
+                <Text style={styles.loginInputLabel}>Corporate Mobile Number</Text>
+                <TextInput
+                  style={styles.loginTextInputField}
+                  placeholder="e.g. +91 98765 43210"
+                  placeholderTextColor="#4E5D78"
+                  value={loginMobile}
+                  onChangeText={setLoginMobile}
+                  keyboardType="phone-pad"
+                  keyboardAppearance="dark"
+                />
+              </View>
+            )}
+
+            {/* Terms and Conditions Section */}
+            <View style={styles.termsTitledBox}>
+              <Text style={styles.termsTitleText}>⚠️ LINGUISTIC ACCURACY DISCLAIMER & REWARD AUDIT POLICY</Text>
+              <ScrollView style={styles.termsScrollBox} nestedScrollEnabled={true}>
+                <Text style={styles.termsBodyText}>
+                  1. <Text style={{fontWeight: 'bold', color: '#00E5FF'}}>Non-Human Certified Outputs:</Text> All conversational transcript translations and audio synthesized files served via AnuVedhai are dynamically formulated using remote Large Language Models (LLM API routers). These translations have NOT been certified or verified as perfect by linguistic authorities beforehand.
+                  {"\n\n"}
+                  2. <Text style={{fontWeight: 'bold', color: '#00E5FF'}}>Potential Discrepancies Warning:</Text> Users are formally advised that translation results may exhibit minor contextual discrepancies, grammatical variances, or matching differences depending on regional slang, localized accent registers, and complex cultural terminologies.
+                  {"\n\n"}
+                  3. <Text style={{fontWeight: 'bold', color: '#00E5FF'}}>Linguistic Auditor Program:</Text> To guarantee bulletproof, field-ready local dialects, you are strongly encouraged to report linguistic feedback. When you spot a translation match—be it accurate or inaccurate—please submit a verification report through the "Audit & Rewards Hub" inside the app dashboard.
+                  {"\n\n"}
+                  4. <Text style={{fontWeight: 'bold', color: '#00E5FF'}}>Earn Points & Wallet Rewards Credits:</Text> Reviewing and reporting results immediately deposits <Text style={{color: '#FF9800', fontWeight: 'bold'}}>50 Pending Points</Text> into your auditor wallet. Once checked, curated, and verified by our auditing team, these pending points are transformed into <Text style={{color: '#00E676', fontWeight: 'bold'}}>Active Reward Credits</Text> which can be used to purchase priority low-latency servers and custom synthetic voice packets!
+                </Text>
+              </ScrollView>
+            </View>
+
+            {/* Terms Consenting Box */}
+            <TouchableOpacity
+              style={styles.checkboxLine}
+              onPress={async () => {
+                try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                setTermsAccepted(!termsAccepted);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.checkboxSquare, termsAccepted && styles.checkboxSquareChecked]}>
+                {termsAccepted && <Text style={styles.checkboxTick}>✓</Text>}
+              </View>
+              <Text style={styles.checkboxLabel}>
+                Understood. I accept that translations are experimental and consent to the Crowdsourced Accuracy Verification Policy.
+              </Text>
+            </TouchableOpacity>
+
+            {/* Portal Action Trigger Button */}
+            <TouchableOpacity
+              style={[styles.loginSubmitBtn, !termsAccepted && styles.loginSubmitBtnDisabled]}
+              onPress={handleLoginPress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.loginSubmitBtnTxt}>AUTHORIZE DEPLOYMENT TERMINAL</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -1395,6 +1687,342 @@ export default function App() {
                   </View>
                 );
               })()}
+            </View>
+
+            {/* LINGUISTIC VERIFICATION FEEDBACK & REWARD HUB */}
+            <View style={styles.rewardHubOuterContainer}>
+              <TouchableOpacity
+                style={styles.rewardHubHeaderToggle}
+                onPress={async () => {
+                  try {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    setIsAuditorHubExpanded(!isAuditorHubExpanded);
+                    if (!isAuditorHubExpanded) {
+                      speakText("Linguistic verification hub active. Submit local translation reviews to earn reward credits.");
+                    }
+                  } catch (err) {
+                    setIsAuditorHubExpanded(!isAuditorHubExpanded);
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <Text style={{ fontSize: 13, marginRight: 6 }}>💎</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rewardHubTitleMain}>TRANSLATION AUDIT & REWARDS HUB</Text>
+                    <Text style={styles.rewardHubSubtitleMain}>Verify translated results to earn API credit vouchers</Text>
+                  </View>
+                </View>
+                <View style={[styles.rewardExpandBadge, isAuditorHubExpanded && styles.rewardExpandBadgeActive]}>
+                  <Text style={styles.rewardExpandBadgeTxt}>{isAuditorHubExpanded ? '✕ CLOSE' : '🚀 VIEW AUDIT'}</Text>
+                </View>
+              </TouchableOpacity>
+
+              {isAuditorHubExpanded && (
+                <View style={styles.rewardHubExpandedWrapper}>
+                  
+                  {/* WALLET METRICS BOARD */}
+                  <View style={styles.walletBoard}>
+                    <Text style={styles.walletBoardTitle}>💎 MY ANUVEDHAI REWARDS WALLET</Text>
+                    <View style={styles.walletMetricsRow}>
+                      <View style={styles.walletMetricBox}>
+                        <Text style={styles.walletCardAmount}>{walletCredits}</Text>
+                        <Text style={styles.walletCardLabel}>Active Credits ❇️</Text>
+                      </View>
+                      <View style={styles.walletMetricBox}>
+                        <Text style={[styles.walletCardAmount, { color: '#FF9800' }]}>{pendingPoints}</Text>
+                        <Text style={styles.walletCardLabel}>Pending Points ⏳</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.walletPromoNote}>
+                      Active Credits are redeemable for priority server routes and voice synthetics. Verify translations to unlock more credits.
+                    </Text>
+                  </View>
+
+                  {/* WEEKLY EARNING PROGRESS CHART (RECHARTS STYLE) */}
+                  <View style={styles.chartContainerOuter}>
+                    <Text style={styles.chartHeaderTitle}>📊 RECHARTS-INSPIRED WEEKLY EARNING TREND</Text>
+                    <Text style={styles.chartHeaderSubtitle}>
+                      Interactive active reward credits velocity tracker (Tap column to inspect day)
+                    </Text>
+
+                    {/* Active tooltip block */}
+                    {(() => {
+                      // Find chosen or current day's earnings
+                      const inspectDayName = selectedChartDay || (() => {
+                        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        return days[new Date().getDay()];
+                      })();
+                      const dayData = weeklyEarnings.find(d => d.day === inspectDayName) || weeklyEarnings[0];
+                      const maxVal = Math.max(...weeklyEarnings.map(w => w.credits));
+
+                      return (
+                        <View style={styles.chartTooltipBox}>
+                          <Text style={styles.chartTooltipDay}>{inspectDayName.toUpperCase()} DETAILS:</Text>
+                          <Text style={styles.chartTooltipValue}>
+                            ✨ {dayData.credits} Active Credits {inspectDayName === selectedChartDay ? '(Selected)' : '(Today)'}
+                          </Text>
+                          <Text style={styles.chartTooltipStatus}>
+                            {dayData.credits >= maxVal ? '🔥 PEAK ACTIVE DAY' : '📈 PROGRESS LEVEL'}
+                          </Text>
+                        </View>
+                      );
+                    })()}
+
+                    {/* Chart Core Grid */}
+                    <View style={styles.chartGridFrame}>
+                      {/* Grid Background Lines representing Recharts gridlines */}
+                      <View style={styles.chartGridLineRow}>
+                        <Text style={styles.chartYAxisLabel}>150</Text>
+                        <View style={styles.chartGridLineDashed} />
+                      </View>
+                      <View style={styles.chartGridLineRow}>
+                        <Text style={styles.chartYAxisLabel}>100</Text>
+                        <View style={styles.chartGridLineDashed} />
+                      </View>
+                      <View style={styles.chartGridLineRow}>
+                        <Text style={styles.chartYAxisLabel}>50</Text>
+                        <View style={styles.chartGridLineDashed} />
+                      </View>
+                      <View style={styles.chartGridLineRow}>
+                        <Text style={styles.chartYAxisLabel}>0</Text>
+                        <View style={styles.chartGridLineSolid} />
+                      </View>
+
+                      {/* Bar columns container positioned absolutely over grid */}
+                      <View style={styles.chartColumnsWrapper}>
+                        {weeklyEarnings.map((item, index) => {
+                          const maxScaleValue = 150;
+                          const heightPct = Math.min(100, Math.max(8, (item.credits / maxScaleValue) * 100));
+                          
+                          const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                          const isToday = item.day === daysOfWeek[new Date().getDay()];
+                          const isSelected = item.day === selectedChartDay;
+
+                          return (
+                            <TouchableOpacity
+                              key={index}
+                              style={styles.chartColTouchable}
+                              activeOpacity={0.8}
+                              onPress={async () => {
+                                try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                                setSelectedChartDay(item.day);
+                              }}
+                            >
+                              {/* Numerical count at top of bar */}
+                              <Text style={[styles.chartBarValueText, (isToday || isSelected) && styles.chartBarValueTextHighlighted]}>
+                                {item.credits}
+                              </Text>
+
+                              {/* Bar Pillar */}
+                              <View style={styles.chartBarTrack}>
+                                <View style={[
+                                  styles.chartBarFill,
+                                  { height: `${heightPct}%` },
+                                  isToday && styles.chartBarFillToday,
+                                  isSelected && styles.chartBarFillSelected
+                                ]}>
+                                  {/* Beautiful linear cap representing modern Recharts area stroke gradient */}
+                                  <View style={styles.chartBarNeonCap} />
+                                </View>
+                              </View>
+
+                              {/* X Axis Label */}
+                              <Text style={[styles.chartXLabel, (isToday || isSelected) && styles.chartXLabelHighlighted]}>
+                                {item.day}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </View>
+
+                    {/* Chart Legend Controls */}
+                    <View style={styles.chartLegendRow}>
+                      <View style={styles.chartLegendIndicator}>
+                        <View style={[styles.chartLegendColor, { backgroundColor: '#00E676' }]} />
+                        <Text style={styles.chartLegendText}>Standard Day</Text>
+                      </View>
+                      <View style={styles.chartLegendIndicator}>
+                        <View style={[styles.chartLegendColor, { backgroundColor: '#00E5FF' }]} />
+                        <Text style={styles.chartLegendText}>Today</Text>
+                      </View>
+                      <View style={styles.chartLegendIndicator}>
+                        <View style={[styles.chartLegendColor, { backgroundColor: '#FF9800' }]} />
+                        <Text style={styles.chartLegendText}>Selected</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* FEEDBACK FORM */}
+                  <Text style={styles.rewardsSectionTitle}>📝 SUBMIT TRANSLATION VERIFICATION REVIEW</Text>
+                  <View style={styles.rewardsFormStyle}>
+                    
+                    {/* Choose Language */}
+                    <Text style={styles.rewardsFormLabel}>Translated Language Module:</Text>
+                    <View style={styles.rewardsLangSelectorRow}>
+                      {LANGUAGE_COURSES.map((course) => {
+                        const isSelected = fbLanguage === course.id;
+                        return (
+                          <TouchableOpacity
+                            key={course.id}
+                            style={[styles.rewardsLangChip, isSelected && styles.rewardsLangChipActive]}
+                            onPress={async () => {
+                              try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                              setFbLanguage(course.id);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.rewardsLangChipTxt, isSelected && styles.rewardsLangChipTxtActive]}>
+                              {course.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Original Phrase */}
+                    <Text style={styles.rewardsFormLabel}>Original English Sentence:</Text>
+                    <TextInput
+                      style={styles.rewardsTextInput}
+                      placeholder="e.g., Where is the local hospital?"
+                      placeholderTextColor="#4E5E75"
+                      value={fbOriginal}
+                      onChangeText={setFbOriginal}
+                      keyboardAppearance="dark"
+                      autoCapitalize="sentences"
+                    />
+
+                    {/* Translated text */}
+                    <Text style={styles.rewardsFormLabel}>Translated Script Result:</Text>
+                    <TextInput
+                      style={styles.rewardsTextInput}
+                      placeholder="e.g., स्थानीय अस्पताल कहाँ है?"
+                      placeholderTextColor="#4E5E75"
+                      value={fbTranslated}
+                      onChangeText={setFbTranslated}
+                      keyboardAppearance="dark"
+                    />
+
+                    {/* Quality feedback status indicator */}
+                    <Text style={styles.rewardsFormLabel}>Is this translation accurate?</Text>
+                    <View style={styles.rewardsOptionRadioRow}>
+                      <TouchableOpacity
+                        style={[styles.rewardsRadioBtn, fbIsAccurate === true && styles.rewardsRadioBtnActiveCorrect]}
+                        onPress={async () => {
+                          try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                          setFbIsAccurate(true);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.rewardsRadioBtnTxt, fbIsAccurate === true && styles.rewardsRadioBtnTxtActive]}>
+                          ✅ Yes, Accurate
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.rewardsRadioBtn, fbIsAccurate === false && styles.rewardsRadioBtnActiveInaccurate]}
+                        onPress={async () => {
+                          try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                          setFbIsAccurate(false);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.rewardsRadioBtnTxt, fbIsAccurate === false && styles.rewardsRadioBtnTxtActive]}>
+                          ❌ Error / Needs Fix
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Correction details if inaccurate */}
+                    {fbIsAccurate === false && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={styles.rewardsFormLabel}>Suggested Correction Script:</Text>
+                        <TextInput
+                          style={styles.rewardsTextInput}
+                          placeholder="Please write the correct translated phrase..."
+                          placeholderTextColor="#4E5E75"
+                          value={fbCorrection}
+                          onChangeText={setFbCorrection}
+                          keyboardAppearance="dark"
+                        />
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.rewardsSubmitBtn}
+                      onPress={handleSubmitLinguisticReview}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.rewardsSubmitBtnTxt}>SUBMIT AUDIT REPORT (+50 POINTS) ➔</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* SIMULATED AUDIT SECTION */}
+                  <View style={styles.teamSimulatorSection}>
+                    <View style={styles.teamSimulatorHeader}>
+                      <Text style={styles.teamSimHeading}>⚡ SYSTEM COMPLIANCE TERMINAL (TEAM AUDIT SIMULATOR)</Text>
+                      <TouchableOpacity
+                        style={styles.teamSimVerifyBtn}
+                        onPress={handleSimulateTeamLinguisticAudit}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.teamSimVerifyBtnTxt}>Run Team Verification & Audit</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.teamSimDescTxt}>
+                      Normally, the AnuVedhai linguistic team audits reports within 24 hours. Press the button above to simulate the team instantly reviewing and approving your pending feedback logs.
+                    </Text>
+                  </View>
+
+                  {/* LATEST USER FEEDBACK LOGS */}
+                  <Text style={styles.rewardsSectionTitle}>📋 MY VERIFICATION HISTORY</Text>
+                  {feedbackHistory.length === 0 ? (
+                    <Text style={{ color: '#5F6E84', fontSize: 8.5, textAlign: 'center', padding: 12 }}>
+                      No verification logs submitted yet in this session.
+                    </Text>
+                  ) : (
+                    feedbackHistory.map((item) => (
+                      <View key={item.id} style={styles.feedbackLogCard}>
+                        <View style={styles.feedbackLogCardHeader}>
+                          <View style={styles.feedbackLanguageBadge}>
+                            <Text style={styles.feedbackLanguageBadgeTxt}>{item.language.toUpperCase()}</Text>
+                          </View>
+                          <Text style={styles.feedbackLogTime}>{item.timestamp}</Text>
+                        </View>
+
+                        <Text style={styles.fbLogPhraseText}>
+                          Original: <Text style={{ color: '#FFF' }}>"{item.originalText}"</Text>
+                        </Text>
+                        <Text style={styles.fbLogPhraseText}>
+                          Translated: <Text style={{ color: '#FFF' }}>"{item.translatedText}"</Text>
+                        </Text>
+
+                        {item.userCorrection ? (
+                          <Text style={styles.fbLogPhraseTextSmall}>
+                            Suggested Fix: <Text style={{ color: '#FF9800', fontStyle: 'italic' }}>"{item.userCorrection}"</Text>
+                          </Text>
+                        ) : null}
+
+                        <View style={styles.feedbackItemFooter}>
+                          <View style={[
+                            styles.fbStatusIndicator,
+                            item.verificationStatus === 'Pending Verification' ? styles.fbStatusPending : styles.fbStatusApproved
+                          ]}>
+                            <Text style={styles.fbStatusIndicatorText}>
+                              {item.verificationStatus === 'Pending Verification' ? '⏳ PENDING AUDIT' : '❇️ VERIFIED & DISBURSED'}
+                            </Text>
+                          </View>
+                          <Text style={styles.fbStatusIndicatorPoints}>
+                            {item.verificationStatus === 'Pending Verification' ? '+50 Points Pending' : '+50 Credits Added'}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+
+                </View>
+              )}
             </View>
 
             {/* Custom NLP Output Segment */}
@@ -2962,5 +3590,662 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 8,
     fontWeight: '900',
+  },
+  loginPageContainer: {
+    flex: 1,
+    backgroundColor: '#070A13',
+  },
+  loginScrollContainer: {
+    padding: 20,
+    paddingTop: 45,
+    paddingBottom: 60,
+  },
+  loginLogoSection: {
+    alignItems: 'center',
+    marginBottom: 25,
+  },
+  loginAppIcon: {
+    fontSize: 34,
+    marginBottom: 8,
+  },
+  loginAppName: {
+    color: '#00E5FF',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  loginAppTagline: {
+    color: '#647D9E',
+    fontSize: 9.5,
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '700',
+  },
+  loginCard: {
+    backgroundColor: '#0F1524',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.1)',
+    borderRadius: 14,
+    padding: 16,
+  },
+  loginCardTitle: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  loginCardDesc: {
+    color: '#7C8FAD',
+    fontSize: 9,
+    lineHeight: 12,
+    marginBottom: 16,
+  },
+  loginTabGroup: {
+    flexDirection: 'row',
+    backgroundColor: '#060910',
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  loginTabBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  loginTabBtnActive: {
+    backgroundColor: '#162035',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.2)',
+  },
+  loginTabBtnTxt: {
+    color: '#6F7E94',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  loginTabBtnTxtActive: {
+    color: '#00E5FF',
+    fontWeight: '900',
+  },
+  loginInputWrapper: {
+    marginBottom: 16,
+    width: '100%',
+  },
+  loginInputLabel: {
+    color: '#9BB1CF',
+    fontSize: 9,
+    fontWeight: '800',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  loginTextInputField: {
+    backgroundColor: '#080C14',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 8,
+    color: '#FFF',
+    fontSize: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  termsTitledBox: {
+    backgroundColor: '#080C14',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,152,0,0.15)',
+    padding: 10,
+    marginBottom: 14,
+  },
+  termsTitleText: {
+    fontSize: 8.5,
+    color: '#FF9800',
+    fontWeight: '900',
+    marginBottom: 6,
+    letterSpacing: 0.3,
+  },
+  termsScrollBox: {
+    height: 120,
+  },
+  termsBodyText: {
+    color: '#A0AEC0',
+    fontSize: 9,
+    lineHeight: 13,
+  },
+  checkboxLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+    paddingRight: 6,
+  },
+  checkboxSquare: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#7C8FAD',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+    backgroundColor: '#080C14',
+  },
+  checkboxSquareChecked: {
+    borderColor: '#00E676',
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+  },
+  checkboxTick: {
+    color: '#00E676',
+    fontSize: 9.5,
+    fontWeight: '950',
+  },
+  checkboxLabel: {
+    color: '#A0AEC0',
+    fontSize: 9,
+    flex: 1,
+    lineHeight: 12,
+  },
+  loginSubmitBtn: {
+    backgroundColor: '#00E5FF',
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00E5FF',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 10,
+  },
+  loginSubmitBtnDisabled: {
+    backgroundColor: '#1F2E3F',
+    opacity: 0.6,
+  },
+  loginSubmitBtnTxt: {
+    color: '#000',
+    fontSize: 10.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  loginGlowingVisual: {
+    position: 'absolute',
+    top: -150,
+    left: -150,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(0, 229, 255, 0.05)',
+    zIndex: -1,
+  },
+  rewardHubOuterContainer: {
+    backgroundColor: '#111827',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.08)',
+    marginTop: 14,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  rewardHubHeaderToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(0, 229, 255, 0.03)',
+  },
+  rewardHubTitleMain: {
+    color: '#00E5FF',
+    fontSize: 10,
+    fontWeight: '950',
+    letterSpacing: 0.3,
+  },
+  rewardHubSubtitleMain: {
+    color: '#8A99AD',
+    fontSize: 8,
+    marginTop: 1,
+  },
+  rewardExpandBadge: {
+    backgroundColor: '#1F2937',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  rewardExpandBadgeActive: {
+    backgroundColor: '#374151',
+    borderColor: '#00E5FF',
+  },
+  rewardExpandBadgeTxt: {
+    color: '#D1D5DB',
+    fontSize: 7.5,
+    fontWeight: '900',
+  },
+  rewardHubExpandedWrapper: {
+    padding: 12,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: '#0F1524',
+  },
+  walletBoard: {
+    backgroundColor: '#080C14',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.1)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+  },
+  walletBoardTitle: {
+    color: '#D1E2F5',
+    fontSize: 8.5,
+    fontWeight: '900',
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  walletMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  walletMetricBox: {
+    flex: 1,
+    backgroundColor: '#111822',
+    borderRadius: 6,
+    padding: 8,
+    alignItems: 'center',
+    marginHorizontal: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.02)',
+  },
+  walletCardAmount: {
+    color: '#00E676',
+    fontSize: 16,
+    fontWeight: '950',
+  },
+  walletCardLabel: {
+    color: '#7F8FA4',
+    fontSize: 7.5,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  walletPromoNote: {
+    fontSize: 7.5,
+    color: '#637A93',
+    lineHeight: 11,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  rewardsSectionTitle: {
+    fontSize: 8.5,
+    color: '#9CCAFF',
+    fontWeight: '900',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  rewardsFormStyle: {
+    backgroundColor: '#080C14',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.02)',
+  },
+  rewardsFormLabel: {
+    color: '#8CA1C4',
+    fontSize: 8,
+    fontWeight: '800',
+    marginBottom: 4,
+    marginTop: 6,
+  },
+  rewardsLangSelectorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
+  rewardsLangChip: {
+    backgroundColor: '#111827',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginRight: 5,
+    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+  },
+  rewardsLangChipActive: {
+    backgroundColor: 'rgba(0, 229, 255, 0.1)',
+    borderColor: '#00E5FF',
+  },
+  rewardsLangChipTxt: {
+    color: '#9CA3AF',
+    fontSize: 7.5,
+    fontWeight: '800',
+  },
+  rewardsLangChipTxtActive: {
+    color: '#00E5FF',
+    fontWeight: '900',
+  },
+  rewardsTextInput: {
+    backgroundColor: '#0F1524',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    color: '#FFF',
+    fontSize: 9.5,
+    marginBottom: 8,
+  },
+  rewardsOptionRadioRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  rewardsRadioBtn: {
+    flex: 1,
+    backgroundColor: '#151b26',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 6,
+    paddingVertical: 6,
+    alignItems: 'center',
+    marginHorizontal: 2,
+  },
+  rewardsRadioBtnActiveCorrect: {
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+    borderColor: '#00E676',
+  },
+  rewardsRadioBtnActiveInaccurate: {
+    backgroundColor: 'rgba(255, 82, 82, 0.1)',
+    borderColor: '#FF5252',
+  },
+  rewardsRadioBtnTxt: {
+    color: '#9BB1CF',
+    fontSize: 8,
+    fontWeight: '800',
+  },
+  rewardsRadioBtnTxtActive: {
+    color: '#FFF',
+    fontWeight: '950',
+  },
+  rewardsSubmitBtn: {
+    backgroundColor: '#00E5FF',
+    borderRadius: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  rewardsSubmitBtnTxt: {
+    color: '#000',
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  teamSimulatorSection: {
+    backgroundColor: '#1E1B18',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,152,0,0.15)',
+  },
+  teamSimulatorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  teamSimHeading: {
+    color: '#FF9800',
+    fontSize: 8,
+    fontWeight: '950',
+  },
+  teamSimVerifyBtn: {
+    backgroundColor: '#FF9800',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  teamSimVerifyBtnTxt: {
+    color: '#000',
+    fontSize: 7.5,
+    fontWeight: '900',
+  },
+  teamSimDescTxt: {
+    fontSize: 7.5,
+    color: '#A0AEC0',
+    lineHeight: 11,
+  },
+  feedbackLogCard: {
+    backgroundColor: '#080C14',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  feedbackLogCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  feedbackLanguageBadge: {
+    backgroundColor: '#1F2937',
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+  },
+  feedbackLanguageBadgeTxt: {
+    color: '#E5E7EB',
+    fontSize: 6.5,
+    fontWeight: '900',
+  },
+  feedbackLogTime: {
+    color: '#4B5563',
+    fontSize: 7,
+    fontWeight: '800',
+  },
+  fbLogPhraseText: {
+    color: '#9CA3AF',
+    fontSize: 8,
+    lineHeight: 11,
+  },
+  fbLogPhraseTextSmall: {
+    color: '#9CA3AF',
+    fontSize: 7.5,
+    lineHeight: 10,
+    marginTop: 2,
+  },
+  feedbackItemFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)',
+  },
+  fbStatusIndicator: {
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  fbStatusPending: {
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+  },
+  fbStatusApproved: {
+    backgroundColor: 'rgba(0, 230, 118, 0.1)',
+  },
+  fbStatusIndicatorText: {
+    color: '#FFF',
+    fontSize: 6.5,
+    fontWeight: '950',
+  },
+  fbStatusIndicatorPoints: {
+    color: '#00E676',
+    fontSize: 7.5,
+    fontWeight: '900',
+  },
+  chartContainerOuter: {
+    backgroundColor: '#080C14',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.08)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+  },
+  chartHeaderTitle: {
+    color: '#00E5FF',
+    fontSize: 9,
+    fontWeight: '950',
+    letterSpacing: 0.3,
+  },
+  chartHeaderSubtitle: {
+    color: '#7F8FA4',
+    fontSize: 7.5,
+    marginTop: 1,
+    marginBottom: 10,
+  },
+  chartTooltipBox: {
+    backgroundColor: '#111827',
+    borderRadius: 6,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    marginBottom: 10,
+  },
+  chartTooltipDay: {
+    color: '#8A99AD',
+    fontSize: 7,
+    fontWeight: '900',
+    marginBottom: 2,
+  },
+  chartTooltipValue: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '950',
+  },
+  chartTooltipStatus: {
+    color: '#00E5FF',
+    fontSize: 6.5,
+    fontWeight: '800',
+    marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  chartGridFrame: {
+    height: 120,
+    position: 'relative',
+    justifyContent: 'space-between',
+    paddingLeft: 22,
+    paddingRight: 6,
+    marginBottom: 8,
+  },
+  chartGridLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 10,
+  },
+  chartYAxisLabel: {
+    color: '#4B5563',
+    fontSize: 7.5,
+    fontWeight: '900',
+    width: 20,
+    textAlign: 'right',
+    marginRight: 6,
+  },
+  chartGridLineDashed: {
+    flex: 1,
+    height: 1,
+    borderStyle: 'dashed',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  chartGridLineSolid: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  chartColumnsWrapper: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 22,
+    right: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 120,
+    paddingBottom: 4,
+  },
+  chartColTouchable: {
+    flex: 1,
+    alignItems: 'center',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  chartBarValueText: {
+    color: '#5F6E84',
+    fontSize: 7,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  chartBarValueTextHighlighted: {
+    color: '#FFF',
+    fontWeight: '950',
+  },
+  chartBarTrack: {
+    width: 14,
+    height: 70,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    borderRadius: 3,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  chartBarFill: {
+    width: '100%',
+    backgroundColor: 'rgba(0, 230, 118, 0.35)',
+    borderRadius: 3,
+  },
+  chartBarFillToday: {
+    backgroundColor: 'rgba(0, 229, 255, 0.45)',
+  },
+  chartBarFillSelected: {
+    backgroundColor: 'rgba(255, 152, 0, 0.45)',
+  },
+  chartBarNeonCap: {
+    height: 3,
+    backgroundColor: '#00E676',
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+  },
+  chartXLabel: {
+    color: '#5F6E84',
+    fontSize: 7.5,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  chartXLabelHighlighted: {
+    color: '#FFF',
+    fontWeight: '950',
+  },
+  chartLegendRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  chartLegendIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 8,
+  },
+  chartLegendColor: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 4,
+  },
+  chartLegendText: {
+    color: '#7C8FAD',
+    fontSize: 7,
+    fontWeight: '800',
   },
 });
