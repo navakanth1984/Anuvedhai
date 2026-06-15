@@ -1028,7 +1028,12 @@ fun TranslationScreen(viewModel: TranslationViewModel) {
                                 onCopyClick = {
                                     clipboardManager.setText(AnnotatedString(turn.translatedText))
                                     Toast.makeText(context, "Translation copied to clipboard", Toast.LENGTH_SHORT).show()
-                                }
+                                },
+                                onCopyOriginalClick = {
+                                    clipboardManager.setText(AnnotatedString(turn.originalContent))
+                                    Toast.makeText(context, "Original copied to clipboard", Toast.LENGTH_SHORT).show()
+                                },
+                                onOriginalPlaybackToggle = { viewModel.playOriginalAudio(turn) }
                             )
                         }
                     }
@@ -1535,7 +1540,9 @@ fun TranslationTurnItem(
     turn: TranslationTurn,
     isPlaying: Boolean,
     onPlaybackToggle: () -> Unit,
-    onCopyClick: () -> Unit
+    onCopyClick: () -> Unit,
+    onCopyOriginalClick: () -> Unit,
+    onOriginalPlaybackToggle: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -1642,18 +1649,51 @@ fun TranslationTurnItem(
             }
 
             // Original content transcription block
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "SOURCE (${turn.sourceLanguageName})",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = turn.originalContent.ifBlank { "Unprocessed content..." },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SOURCE (${turn.sourceLanguageName})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = turn.originalContent.ifBlank { "Unprocessed content..." },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (turn.mediaPath != null && turn.inputType == "AUDIO") {
+                        IconButton(
+                            onClick = onOriginalPlaybackToggle,
+                            modifier = Modifier.testTag("playback_original_button_${turn.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PlayArrow,
+                                contentDescription = "Play original audio",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onCopyOriginalClick,
+                        modifier = Modifier.testTag("copy_original_button_${turn.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentCopy,
+                            contentDescription = "Copy Original Text",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             Divider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))

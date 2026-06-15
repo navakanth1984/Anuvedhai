@@ -226,15 +226,8 @@ class TranslationViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     // Speech Output Synthesis Playbacks
-    fun playAudioTurn(turn: TranslationTurn) {
-        if (isPlaying.value && activePlayingTurnId.value == turn.id) {
-            player.stopPlaying()
-            isPlaying.value = false
-            activePlayingTurnId.value = null
-            return
-        }
 
-        // If turn has raw path of recorder input, play it
+    fun playOriginalAudio(turn: TranslationTurn) {
         if (turn.mediaPath != null && turn.inputType == "AUDIO") {
             val f = File(turn.mediaPath)
             if (f.exists()) {
@@ -244,8 +237,16 @@ class TranslationViewModel(application: Application) : AndroidViewModel(applicat
                     isPlaying.value = false
                     activePlayingTurnId.value = null
                 }
-                return
             }
+        }
+    }
+
+    fun playAudioTurn(turn: TranslationTurn) {
+        if (isPlaying.value && activePlayingTurnId.value == turn.id) {
+            player.stopPlaying()
+            isPlaying.value = false
+            activePlayingTurnId.value = null
+            return
         }
 
         // Play the translated text as TTS
@@ -256,7 +257,7 @@ class TranslationViewModel(application: Application) : AndroidViewModel(applicat
             var playedWithSarvam = false
             val apiKey = sarvamApiKey.value.ifBlank { BuildConfig.SARVAM_API_KEY }
 
-            if (useSarvam.value && apiKey.isNotBlank() && apiKey != "YOUR_SARVAM_API_KEY") {
+            if (useSarvam.value && apiKey.isNotBlank() && true /* apiKey != "YOUR_SARVAM_API_KEY" */) {
                 val b64 = repository.getSarvamTtsAudio(turn.translatedText, turn.targetLanguageCode, apiKey, sarvamTtsSpeakerGender.value)
                 if (b64 != null) {
                     playedWithSarvam = true
