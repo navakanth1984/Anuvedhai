@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "AnuVedhai",
+    "slug": "anuvedhai-wrapper",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#121212"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anuvedhai.wrapper",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "AnuVedhai needs access to the microphone for real-time speech translation.",
+        "NSCameraUsageDescription": "AnuVedhai needs access to the camera to scan and translate text off physical documents."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#121212"
+      },
+      "package": "com.anuvedhai.wrapper",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

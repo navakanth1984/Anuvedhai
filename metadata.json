@@ -1,0 +1,6 @@
+{
+  "name": "AnuVedhai",
+  "description": "Near real-time multimodal translator with conversational context for Indian languages and English using Gemini & Sarvam AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
