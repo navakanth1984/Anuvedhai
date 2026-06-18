@@ -1318,6 +1318,13 @@ fun TranslationScreen(viewModel: TranslationViewModel) {
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = { viewModel.submitTextTranslation() }),
                         shape = RoundedCornerShape(24.dp),
+                        trailingIcon = {
+                            if (typedText.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.typedText.value = "" }) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Clear text")
+                                }
+                            }
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
