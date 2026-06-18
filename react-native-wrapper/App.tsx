@@ -137,6 +137,7 @@ export default function App() {
     { day: 'Sun', credits: 100 },
   ]);
   const [selectedChartDay, setSelectedChartDay] = useState<string | null>(null);
+  const [weeklyGoal, setWeeklyGoal] = useState<number>(700);
 
   // Sync today's credits on walletCredits updates
   useEffect(() => {
@@ -904,30 +905,39 @@ export default function App() {
       />
 
       <View style={styles.webWrapper}>
-        <WebView
-          ref={webViewRef}
-          source={{ uri: WEB_APP_URL }}
-          style={styles.webview}
-          onNavigationStateChange={handleNavigationStateChange}
-          onLoadStart={() => setIsLoading(true)}
-          onLoadEnd={() => setIsLoading(false)}
-          domStorageEnabled={true}
-          javaScriptEnabled={true}
-          allowsInlineMediaPlayback={true}
-          mediaPlaybackRequiresUserAction={false}
-          startInLoadingState={true}
-          renderLoading={() => (
-            <View style={styles.nativeLoader}>
-              <ActivityIndicator size="large" color="#FF9800" />
-              <Spacer height={14} />
-              <Text style={styles.loaderTxt}>Initializing AnuVedhai Digital Scribe...</Text>
-            </View>
-          )}
-          // Web to Native communication bridge
-          onMessage={(event) => {
-            handleNativeBridgeMessage(event.nativeEvent.data);
-          }}
-        />
+        {Platform.OS === 'web' ? (
+          React.createElement('iframe', {
+            src: currentUrl,
+            style: { flex: 1, border: 'none', width: '100%', height: '100%', minHeight: 400 },
+            title: "AnuVedhai Live Workspace Web View",
+            onLoad: () => setIsLoading(false),
+          })
+        ) : (
+          <WebView
+            ref={webViewRef}
+            source={{ uri: WEB_APP_URL }}
+            style={styles.webview}
+            onNavigationStateChange={handleNavigationStateChange}
+            onLoadStart={() => setIsLoading(true)}
+            onLoadEnd={() => setIsLoading(false)}
+            domStorageEnabled={true}
+            javaScriptEnabled={true}
+            allowsInlineMediaPlayback={true}
+            mediaPlaybackRequiresUserAction={false}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.nativeLoader}>
+                <ActivityIndicator size="large" color="#FF9800" />
+                <Spacer height={14} />
+                <Text style={styles.loaderTxt}>Initializing AnuVedhai Digital Scribe...</Text>
+              </View>
+            )}
+            // Web to Native communication bridge
+            onMessage={(event) => {
+              handleNativeBridgeMessage(event.nativeEvent.data);
+            }}
+          />
+        )}
 
         {/* Voice Hands-Free Floating Trigger & Background Wake Word Sensor Monitor */}
         {!voiceCommandMode && (
@@ -1746,6 +1756,82 @@ export default function App() {
                       Interactive active reward credits velocity tracker (Tap column to inspect day)
                     </Text>
 
+                    {/* WEEKLY GOAL METRIC DISPLAY AND DISTANCE CALCULATOR */}
+                    {(() => {
+                      const totalEarnedThisWeek = weeklyEarnings.reduce((acc, curr) => acc + curr.credits, 0);
+                      const activeGoal = weeklyGoal || 0;
+                      const distanceToGoalTarget = activeGoal - totalEarnedThisWeek;
+                      const progressPercentage = activeGoal > 0 ? Math.min(100, Math.round((totalEarnedThisWeek / activeGoal) * 100)) : 100;
+                      const dailyGoal = activeGoal > 0 ? Math.round(activeGoal / 7) : 0;
+
+                      return (
+                        <View style={styles.goalProgressSummaryBox}>
+                          <View style={styles.goalMetricTopRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.goalMetricLabel}>WEEKLY AUDITOR PROGRESS GOAL</Text>
+                              <Text style={styles.goalMetricValue}>
+                                {totalEarnedThisWeek} <Text style={{ fontSize: 9, color: '#A0AEC0' }}>/ {activeGoal} Credits</Text>
+                              </Text>
+                            </View>
+
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <View style={styles.goalInputWrapper}>
+                                <Text style={styles.goalInputLabel}>🎯 GOAL:</Text>
+                                <TextInput
+                                  style={styles.goalTextInput}
+                                  value={weeklyGoal === 0 ? '' : String(weeklyGoal)}
+                                  onChangeText={(text) => {
+                                    const parsed = parseInt(text.replace(/[^0-9]/g, ''));
+                                    setWeeklyGoal(isNaN(parsed) ? 0 : parsed);
+                                  }}
+                                  keyboardType="numeric"
+                                  placeholder="700"
+                                  placeholderTextColor="rgba(0, 229, 255, 0.3)"
+                                />
+                              </View>
+
+                              <Spacer width={6} />
+
+                              <View style={[styles.goalBadgePill, progressPercentage >= 100 && { backgroundColor: 'rgba(0, 230, 118, 0.15)' }]}>
+                                <Text style={[styles.goalBadgePillTxt, progressPercentage >= 100 && { color: '#00E676' }]}>
+                                  {progressPercentage}% COMPLETE
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+
+                          {/* Progress bar track */}
+                          <View style={styles.goalProgressTrackBar}>
+                            <View style={[styles.goalProgressFillBar, { width: `${progressPercentage}%` }, progressPercentage >= 100 && { backgroundColor: '#00E676' }]} />
+                          </View>
+
+                          {/* Goal Distance Information text */}
+                          {activeGoal === 0 ? (
+                            <View style={styles.distanceMetricContainer}>
+                              <Text style={styles.distanceAlertEmoji}>💡</Text>
+                              <Text style={styles.distanceTextDesc}>
+                                Enter a custom weekly target in the GOAL box above to visually monitor your progress toward premium auditor tiers!
+                              </Text>
+                            </View>
+                          ) : distanceToGoalTarget > 0 ? (
+                            <View style={styles.distanceMetricContainer}>
+                              <Text style={styles.distanceAlertEmoji}>🎯</Text>
+                              <Text style={styles.distanceTextDesc}>
+                                You are only <Text style={styles.distanceHighlightValue}>{distanceToGoalTarget} credits</Text> away from achieving this week's linguistic auditor target! Approve pending verification tasks or submit reviews to claim rewards.
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={[styles.distanceMetricContainer, styles.distanceMetricContainerSuccess]}>
+                              <Text style={styles.distanceAlertEmoji}>🏆</Text>
+                              <Text style={[styles.distanceTextDesc, { color: '#00E676' }]}>
+                                Milestone reached! You have exceeded the weekly goal of {activeGoal} credits by <Text style={{ fontWeight: 'bold' }}>{Math.abs(distanceToGoalTarget)} credits</Text>! Elite Partner Bonus active.
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })()}
+
                     {/* Active tooltip block */}
                     {(() => {
                       // Find chosen or current day's earnings
@@ -1770,70 +1856,109 @@ export default function App() {
                     })()}
 
                     {/* Chart Core Grid */}
-                    <View style={styles.chartGridFrame}>
-                      {/* Grid Background Lines representing Recharts gridlines */}
-                      <View style={styles.chartGridLineRow}>
-                        <Text style={styles.chartYAxisLabel}>150</Text>
-                        <View style={styles.chartGridLineDashed} />
-                      </View>
-                      <View style={styles.chartGridLineRow}>
-                        <Text style={styles.chartYAxisLabel}>100</Text>
-                        <View style={styles.chartGridLineDashed} />
-                      </View>
-                      <View style={styles.chartGridLineRow}>
-                        <Text style={styles.chartYAxisLabel}>50</Text>
-                        <View style={styles.chartGridLineDashed} />
-                      </View>
-                      <View style={styles.chartGridLineRow}>
-                        <Text style={styles.chartYAxisLabel}>0</Text>
-                        <View style={styles.chartGridLineSolid} />
-                      </View>
+                    {(() => {
+                      const activeGoal = weeklyGoal || 0;
+                      const dailyGoal = activeGoal > 0 ? Math.round(activeGoal / 7) : 0;
+                      const maxEarnings = Math.max(...weeklyEarnings.map(w => w.credits), 10);
+                      const maxScaleValue = Math.max(150, Math.ceil(Math.max(maxEarnings, dailyGoal) / 50) * 50);
 
-                      {/* Bar columns container positioned absolutely over grid */}
-                      <View style={styles.chartColumnsWrapper}>
-                        {weeklyEarnings.map((item, index) => {
-                          const maxScaleValue = 150;
-                          const heightPct = Math.min(100, Math.max(8, (item.credits / maxScaleValue) * 100));
-                          
-                          const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                          const isToday = item.day === daysOfWeek[new Date().getDay()];
-                          const isSelected = item.day === selectedChartDay;
+                      return (
+                        <View style={styles.chartGridFrame}>
+                          {/* Grid Background Lines representing Recharts gridlines */}
+                          <View style={styles.chartGridLineRow}>
+                            <Text style={styles.chartYAxisLabel}>{maxScaleValue}</Text>
+                            <View style={styles.chartGridLineDashed} />
+                          </View>
+                          <View style={styles.chartGridLineRow}>
+                            <Text style={styles.chartYAxisLabel}>{Math.round(maxScaleValue * (2 / 3))}</Text>
+                            <View style={styles.chartGridLineDashed} />
+                          </View>
+                          <View style={styles.chartGridLineRow}>
+                            <Text style={styles.chartYAxisLabel}>{Math.round(maxScaleValue * (1 / 3))}</Text>
+                            <View style={styles.chartGridLineDashed} />
+                          </View>
+                          <View style={styles.chartGridLineRow}>
+                            <Text style={styles.chartYAxisLabel}>0</Text>
+                            <View style={styles.chartGridLineSolid} />
+                          </View>
 
-                          return (
-                            <TouchableOpacity
-                              key={index}
-                              style={styles.chartColTouchable}
-                              activeOpacity={0.8}
-                              onPress={async () => {
-                                try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
-                                setSelectedChartDay(item.day);
-                              }}
+                          {/* DYNAMIC GOAL MARKER OVERLAY LINE */}
+                          {dailyGoal > 0 && dailyGoal <= maxScaleValue && (
+                            <View 
+                              style={[
+                                styles.chartGoalAbsoluteLineOverlay, 
+                                { bottom: `${(dailyGoal / maxScaleValue) * 100}%` }
+                              ]}
                             >
-                              {/* Numerical count at top of bar */}
-                              <Text style={[styles.chartBarValueText, (isToday || isSelected) && styles.chartBarValueTextHighlighted]}>
-                                {item.credits}
-                              </Text>
-
-                              {/* Bar Pillar */}
-                              <View style={styles.chartBarTrack}>
-                                <View style={[
-                                  styles.chartBarFill,
-                                  { height: `${heightPct}%` },
-                                  isToday && styles.chartBarFillToday,
-                                  isSelected && styles.chartBarFillSelected
-                                ]}>
-                                  {/* Beautiful linear cap representing modern Recharts area stroke gradient */}
-                                  <View style={styles.chartBarNeonCap} />
-                                </View>
+                              <View style={styles.chartGoalAbsoluteLineDash} />
+                              <View style={styles.chartGoalAbsoluteLabelTag}>
+                                <Text style={styles.chartGoalAbsoluteLabelTagTxt}>🎯 TARGET: {dailyGoal}/DAY ({activeGoal}/WK)</Text>
                               </View>
+                            </View>
+                          )}
 
-                              {/* X Axis Label */}
-                              <Text style={[styles.chartXLabel, (isToday || isSelected) && styles.chartXLabelHighlighted]}>
-                                {item.day}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
+                          {/* Bar columns container positioned absolutely over grid */}
+                          <View style={styles.chartColumnsWrapper}>
+                            {weeklyEarnings.map((item, index) => {
+                              const heightPct = Math.min(100, Math.max(8, (item.credits / maxScaleValue) * 100));
+                              
+                              const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                              const isToday = item.day === daysOfWeek[new Date().getDay()];
+                              const isSelected = item.day === selectedChartDay;
+
+                              return (
+                                <TouchableOpacity
+                                  key={index}
+                                  style={styles.chartColTouchable}
+                                  activeOpacity={0.8}
+                                  onPress={async () => {
+                                    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch(e){}
+                                    setSelectedChartDay(item.day);
+                                  }}
+                                >
+                                  {/* Numerical count at top of bar */}
+                                  <Text style={[styles.chartBarValueText, (isToday || isSelected) && styles.chartBarValueTextHighlighted]}>
+                                    {item.credits}
+                                  </Text>
+
+                                  {/* Bar Pillar */}
+                                  <View style={styles.chartBarTrack}>
+                                    <View style={[
+                                      styles.chartBarFill,
+                                      { height: `${heightPct}%` },
+                                      isToday && styles.chartBarFillToday,
+                                      isSelected && styles.chartBarFillSelected
+                                    ]}>
+                                      {/* Beautiful linear cap representing modern Recharts area stroke gradient */}
+                                      <View style={styles.chartBarNeonCap} />
+                                    </View>
+                                  </View>
+
+                                  {/* X Axis Label */}
+                                  <Text style={[styles.chartXLabel, (isToday || isSelected) && styles.chartXLabelHighlighted]}>
+                                    {item.day}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    })()}
+
+                    {/* Chart Legend Controls */}
+                    <View style={styles.chartLegendRow}>
+                      <View style={styles.chartLegendIndicator}>
+                        <View style={[styles.chartLegendColor, { backgroundColor: '#00E676' }]} />
+                        <Text style={styles.chartLegendText}>Standard Day</Text>
+                      </View>
+                      <View style={styles.chartLegendIndicator}>
+                        <View style={[styles.chartLegendColor, { backgroundColor: '#00E5FF' }]} />
+                        <Text style={styles.chartLegendText}>Today</Text>
+                      </View>
+                      <View style={styles.chartLegendIndicator}>
+                        <View style={[styles.chartLegendColor, { backgroundColor: '#FF9800' }]} />
+                        <Text style={styles.chartLegendText}>Selected</Text>
                       </View>
                     </View>
 
@@ -4129,6 +4254,142 @@ const styles = StyleSheet.create({
     fontSize: 6.5,
     fontWeight: '800',
     marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  goalProgressSummaryBox: {
+    backgroundColor: '#0F1524',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.1)',
+    padding: 10,
+    marginBottom: 12,
+  },
+  goalMetricTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  goalMetricLabel: {
+    color: '#8A99AD',
+    fontSize: 7.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  goalMetricValue: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '950',
+    marginTop: 2,
+  },
+  goalBadgePill: {
+    backgroundColor: 'rgba(255, 152, 0, 0.12)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 152, 0, 0.2)',
+  },
+  goalBadgePillTxt: {
+    color: '#FF9800',
+    fontSize: 7,
+    fontWeight: '900',
+  },
+  goalProgressTrackBar: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  goalProgressFillBar: {
+    height: '100%',
+    backgroundColor: '#FF9800',
+    borderRadius: 3,
+  },
+  distanceMetricContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 152, 0, 0.04)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 152, 0, 0.08)',
+    alignItems: 'center',
+  },
+  distanceMetricContainerSuccess: {
+    backgroundColor: 'rgba(0, 230, 118, 0.04)',
+    borderColor: 'rgba(0, 230, 118, 0.08)',
+  },
+  distanceAlertEmoji: {
+    fontSize: 10,
+    marginRight: 6,
+  },
+  distanceTextDesc: {
+    flex: 1,
+    color: '#A0AEC0',
+    fontSize: 8,
+    lineHeight: 11,
+  },
+  distanceHighlightValue: {
+    color: '#FF9800',
+    fontWeight: '900',
+  },
+  goalInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 229, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.18)',
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 6,
+  },
+  goalInputLabel: {
+    color: '#00E5FF',
+    fontSize: 6.5,
+    fontWeight: '900',
+    marginRight: 3,
+  },
+  goalTextInput: {
+    color: '#FFF',
+    fontSize: 8.5,
+    fontWeight: '950',
+    padding: 0,
+    width: 38,
+    textAlign: 'center',
+  },
+  chartGoalAbsoluteLineOverlay: {
+    position: 'absolute',
+    left: 22,
+    right: 6,
+    height: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: -8, // Offset half of height to align perfectly
+  },
+  chartGoalAbsoluteLineDash: {
+    flex: 1,
+    height: 1,
+    borderStyle: 'dashed',
+    borderWidth: 0.8,
+    borderColor: '#FF9800',
+    opacity: 0.8,
+  },
+  chartGoalAbsoluteLabelTag: {
+    backgroundColor: 'rgba(255, 152, 0, 0.22)',
+    borderWidth: 1,
+    borderColor: '#FF9800',
+    borderRadius: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 1.5,
+    marginLeft: 4,
+  },
+  chartGoalAbsoluteLabelTagTxt: {
+    color: '#FF9800',
+    fontSize: 5.5,
+    fontWeight: '950',
     letterSpacing: 0.2,
   },
   chartGridFrame: {

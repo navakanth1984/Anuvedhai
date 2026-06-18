@@ -1,10 +1,26 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CachedTranslation, getTranscriptsCache, saveTranscriptsCache } from './OfflineCache';
 
 const SECURE_AUTOSAVE_KEY = 'anuvedhai_secure_autosave_transcripts';
 
 /**
- * Saves transcripts state securely to SecureStore
+ * Checks if SecureStore is available on the current platform
+ */
+async function isSecureStoreAvailable(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+  try {
+    return await SecureStore.isAvailableAsync();
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Saves transcripts state securely to SecureStore or falls back to AsyncStorage
  */
 export async function autoSaveToSecureStore(transcripts: CachedTranslation[]): Promise<boolean> {
   try {
@@ -12,21 +28,33 @@ export async function autoSaveToSecureStore(transcripts: CachedTranslation[]): P
       return false;
     }
     const dataString = JSON.stringify(transcripts);
-    await SecureStore.setItemAsync(SECURE_AUTOSAVE_KEY, dataString);
-    console.log('[AutoSave] SecureStore auto-save successful. Count:', transcripts.length);
+    const useSecure = await isSecureStoreAvailable();
+    if (useSecure) {
+      await SecureStore.setItemAsync(SECURE_AUTOSAVE_KEY, dataString);
+      console.log('[AutoSave] SecureStore auto-save successful. Count:', transcripts.length);
+    } else {
+      await AsyncStorage.setItem(SECURE_AUTOSAVE_KEY, dataString);
+      console.log('[AutoSave] AsyncStorage fallback auto-save successful. Count:', transcripts.length);
+    }
     return true;
   } catch (error) {
-    console.error('[AutoSave] Failed to save transcripts to SecureStore:', error);
+    console.error('[AutoSave] Failed to save transcripts:', error);
     return false;
   }
 }
 
 /**
- * Retrieves the auto-saved transcripts state from SecureStore
+ * Retrieves the auto-saved transcripts state from SecureStore/AsyncStorage
  */
 export async function getAutoSavedTranscripts(): Promise<CachedTranslation[]> {
   try {
-    const rawData = await SecureStore.getItemAsync(SECURE_AUTOSAVE_KEY);
+    let rawData: string | null = null;
+    const useSecure = await isSecureStoreAvailable();
+    if (useSecure) {
+      rawData = await SecureStore.getItemAsync(SECURE_AUTOSAVE_KEY);
+    } else {
+      rawData = await AsyncStorage.getItem(SECURE_AUTOSAVE_KEY);
+    }
     if (!rawData) return [];
     return JSON.parse(rawData) as CachedTranslation[];
   } catch (error) {
@@ -36,7 +64,7 @@ export async function getAutoSavedTranscripts(): Promise<CachedTranslation[]> {
 }
 
 /**
- * Recovers and merges any SecureStore records into normal AsyncStorage memory on startup
+ * Recovers and merges any SecureStore/AsyncStorage records into normal cache memory on startup
  */
 export async function recoverCrashedSessionState(): Promise<{ recoveredCount: number; alreadyMerged: boolean }> {
   try {
@@ -47,7 +75,7 @@ export async function recoverCrashedSessionState(): Promise<{ recoveredCount: nu
 
     const currentCache = await getTranscriptsCache();
     
-    // Find items in SecureStore that do not exist in the current AsyncStorage cache
+    // Find items in SecureStore/AsyncStorage that do not exist in the current cache
     const currentIds = new Set(currentCache.map(i => i.id));
     const missingItems = secureData.filter(item => !currentIds.has(item.id));
 
@@ -55,7 +83,7 @@ export async function recoverCrashedSessionState(): Promise<{ recoveredCount: nu
       // Merge unique items, keeping the temporal order sorted
       const merged = [...missingItems, ...currentCache].slice(0, 50);
       await saveTranscriptsCache(merged);
-      console.log(`[AutoSave] Restored ${missingItems.length} missing transcript entries from crashed session SecureStore.`);
+      console.log(`[AutoSave] Restored ${missingItems.length} missing transcript entries from crashed session memory.`);
       return { recoveredCount: missingItems.length, alreadyMerged: false };
     }
 
@@ -71,10 +99,15 @@ export async function recoverCrashedSessionState(): Promise<{ recoveredCount: nu
  */
 export async function clearSecureAutoSave(): Promise<boolean> {
   try {
-    await SecureStore.deleteItemAsync(SECURE_AUTOSAVE_KEY);
+    const useSecure = await isSecureStoreAvailable();
+    if (useSecure) {
+      await SecureStore.deleteItemAsync(SECURE_AUTOSAVE_KEY);
+    } else {
+      await AsyncStorage.removeItem(SECURE_AUTOSAVE_KEY);
+    }
     return true;
   } catch (error) {
-    console.error('[AutoSave] Failed to clear SecureStore auto-save:', error);
+    console.error('[AutoSave] Failed to clear auto-save:', error);
     return false;
   }
 }
