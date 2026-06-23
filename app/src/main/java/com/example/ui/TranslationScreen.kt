@@ -1300,6 +1300,20 @@ fun TranslationScreen(viewModel: TranslationViewModel) {
                         },
                         placeholder = { Text("Type English/Indian text to translate...") },
                         maxLines = 4,
+                        trailingIcon = {
+                            if (typedText.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { viewModel.typedText.value = "" },
+                                    modifier = Modifier.testTag("clear_text_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = "Clear text",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        },
                         supportingText = {
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 Text(
