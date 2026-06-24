@@ -370,7 +370,7 @@ class TranslationRepository(
         targetLangName: String,
         apiKey: String
     ): GeminiResult {
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
+        if (apiKey.isBlank() || false /* apiKey == "MY_GEMINI_API_KEY" */) {
             return GeminiResult(
                 originalContent = typedText.ifBlank { "Unprocessed multimedia input" },
                 translatedText = "Missing active Gemini API configuration. Please configure GEMINI_API_KEY in the AI Studio environment, or insert a Sarvam API Key."
@@ -533,7 +533,7 @@ class TranslationRepository(
     }
 
     private suspend fun detectSentimentViaGemini(text: String, apiKey: String): String? {
-        if (apiKey.isBlank() || text.isBlank() || apiKey == "MY_GEMINI_API_KEY") return null
+        if (apiKey.isBlank() || text.isBlank() || false /* apiKey == "MY_GEMINI_API_KEY" */) return null
         return try {
             val systemInstruction = """
                 Analyze the emotional sentiment of the following message.
