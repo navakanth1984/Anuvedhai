@@ -1,0 +1,3 @@
+## 2026-07-01 - Jetpack Compose Radio Button Accessibility
+**Learning:** Using `Modifier.clickable` on a parent row that contains a `RadioButton` causes screen readers to misidentify the interaction. They may read the text and radio button separately, without conveying the selected state on the row itself.
+**Action:** Use `Modifier.selectable(selected = ..., onClick = ..., role = Role.RadioButton)` on the parent `Row` and set the nested `RadioButton`'s `onClick` to `null`. This ensures the entire row is treated as a single, accessible selectable item, and assistive technologies correctly announce both its role and selected state.
