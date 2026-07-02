@@ -37,9 +37,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -409,22 +411,30 @@ fun TranslationScreen(viewModel: TranslationViewModel) {
                                 val ttsGender by viewModel.sarvamTtsSpeakerGender.collectAsState()
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { viewModel.sarvamTtsSpeakerGender.value = "Male" }
+                                    modifier = Modifier.selectable(
+                                        selected = ttsGender == "Male",
+                                        onClick = { viewModel.sarvamTtsSpeakerGender.value = "Male" },
+                                        role = Role.RadioButton
+                                    )
                                 ) {
                                     RadioButton(
                                         selected = ttsGender == "Male",
-                                        onClick = { viewModel.sarvamTtsSpeakerGender.value = "Male" },
+                                        onClick = null,
                                         modifier = Modifier.testTag("gender_male")
                                     )
                                     Text(text = "Male Voice", style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { viewModel.sarvamTtsSpeakerGender.value = "Female" }
+                                    modifier = Modifier.selectable(
+                                        selected = ttsGender == "Female",
+                                        onClick = { viewModel.sarvamTtsSpeakerGender.value = "Female" },
+                                        role = Role.RadioButton
+                                    )
                                 ) {
                                     RadioButton(
                                         selected = ttsGender == "Female",
-                                        onClick = { viewModel.sarvamTtsSpeakerGender.value = "Female" },
+                                        onClick = null,
                                         modifier = Modifier.testTag("gender_female")
                                     )
                                     Text(text = "Female Voice", style = MaterialTheme.typography.bodyMedium)
@@ -591,33 +601,45 @@ fun TranslationScreen(viewModel: TranslationViewModel) {
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { viewModel.darkThemeConfig.value = "system" }
+                                modifier = Modifier.selectable(
+                                    selected = darkThemeConfig == "system",
+                                    onClick = { viewModel.darkThemeConfig.value = "system" },
+                                    role = Role.RadioButton
+                                )
                             ) {
                                 RadioButton(
                                     selected = darkThemeConfig == "system",
-                                    onClick = { viewModel.darkThemeConfig.value = "system" },
+                                    onClick = null,
                                     modifier = Modifier.testTag("theme_system")
                                 )
                                 Text(text = "System", style = MaterialTheme.typography.bodyMedium)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { viewModel.darkThemeConfig.value = "light" }
+                                modifier = Modifier.selectable(
+                                    selected = darkThemeConfig == "light",
+                                    onClick = { viewModel.darkThemeConfig.value = "light" },
+                                    role = Role.RadioButton
+                                )
                             ) {
                                 RadioButton(
                                     selected = darkThemeConfig == "light",
-                                    onClick = { viewModel.darkThemeConfig.value = "light" },
+                                    onClick = null,
                                     modifier = Modifier.testTag("theme_light")
                                 )
                                 Text(text = "Light", style = MaterialTheme.typography.bodyMedium)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { viewModel.darkThemeConfig.value = "dark" }
+                                modifier = Modifier.selectable(
+                                    selected = darkThemeConfig == "dark",
+                                    onClick = { viewModel.darkThemeConfig.value = "dark" },
+                                    role = Role.RadioButton
+                                )
                             ) {
                                 RadioButton(
                                     selected = darkThemeConfig == "dark",
-                                    onClick = { viewModel.darkThemeConfig.value = "dark" },
+                                    onClick = null,
                                     modifier = Modifier.testTag("theme_dark")
                                 )
                                 Text(text = "Dark", style = MaterialTheme.typography.bodyMedium)
